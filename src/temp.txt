@@ -1,0 +1,193 @@
+<!-- 用户欢迎区域 -->
+    <div class="welcome-section">
+      <el-card shadow="hover">
+        <div class="user-greeting">
+          <el-icon :size="15" color="#409EFF"><UserFilled /></el-icon>
+          <h1>您好，{{ username }}</h1>
+        </div>
+      </el-card>
+    </div>
+
+<!-- 数据表格区域 -->
+    <div class="data-table-section">
+      <el-card shadow="always">
+        <el-table 
+          :data="tableData" 
+          height="500px" 
+          stripe 
+          style="width: 100%"
+          v-loading="loading"
+          element-loading-text="数据加载中..."
+        >
+          <!-- 序号列（自动排序） -->
+          <el-table-column 
+            type="index" 
+            :index="indexMethod" 
+            label="序号" 
+            width="80" 
+            align="center"
+          />
+
+          <!-- 部门信息列 -->
+          <el-table-column 
+            prop="department" 
+            label="部门" 
+            min-width="200"
+            sortable
+          >
+            <template #default="{ row }">
+              <el-tag type="info" effect="plain">
+                {{ row.department }}
+              </el-tag>
+            </template>
+          </el-table-column>
+
+                      <!-- 价值户户数列 -->
+                      <el-table-column 
+                        prop="householdCount" 
+                        label="价值户户数" 
+                        width="150"
+                        sortable
+                        align="right"
+                      >
+                                  <template #default="{ row }">
+                                    <el-text type="danger" tag="strong">
+                                      {{ row.householdCount.toLocaleString() }}
+                                    </el-text>
+                                  </template>
+                      </el-table-column>
+        </el-table>
+        
+          <!-- 数据更新时间 -->
+          <!-- <div class="update-time">
+            <el-text type="info" size="small">
+              数据更新时间: {{ lastUpdateTime }}
+            </el-text>
+          </div> -->
+        </div> 
+      </el-card>
+    </div>
+
+
+
+
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import { UserFilled } from '@element-plus/icons-vue'
+import { useStore } from 'vuex'
+import { useRouter } from 'vue-router'
+import axios from 'axios'
+import { ElMessage } from 'element-plus'
+
+const store = useStore();
+const router = useRouter();
+
+
+// 从Vuex获取当前登录的用户名
+const username = computed(() => store.state.user?.username || '?');
+
+// 表格数据（初始为空数组）
+const tableData = ref([]);
+const loading = ref(true);
+const lastUpdateTime = ref('');
+
+// 表格自定义序号生成方法
+const indexMethod = (index) => {
+  return index + 1;
+};
+
+// 从后端获取数据
+const fetchData = async () => {
+  try {
+    loading.value = true;
+    
+    // 发送GET请求获取部门统计数据
+    const response = await axios.get('/api/department-stats', {
+      withCredentials: true // 携带凭证
+    });
+    
+    if (response.data.success) {
+      tableData.value = response.data.data;
+      lastUpdateTime.value = new Date().toLocaleString();
+      ElMessage.success('数据加载成功');
+    } else {
+      ElMessage.error('数据获取失败: ' + (response.data.message || '未知错误'));
+    }
+  } catch (error) {
+    console.error('数据获取失败:', error);
+    
+    let errorMsg = '网络请求失败';
+    if (error.response) {
+      if (error.response.status === 401) {
+        errorMsg = '登录已过期，请重新登录';
+        store.dispatch('logout');
+        router.push('/login');
+      } else {
+        errorMsg = `服务器错误: ${error.response.status}`;
+      }
+    }
+    
+    ElMessage.error(errorMsg);
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 组件挂载时获取数据
+onMounted(() => {
+  // 如果用户未登录，跳转到登录页
+  if (!store.state.isAuthenticated) {
+    router.push('/login');
+    return;
+  }
+  // 获取数据
+  fetchData();
+});
+</script>
+
+<style scoped>
+.home-container {
+  padding: 15px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.welcome-section {
+  margin-bottom: 15px;
+}
+
+.user-greeting {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.user-greeting h1 {
+  font-size: 20px;
+  margin: 0;
+  font-weight: normal;
+  color: #333;
+}
+
+.data-table-section {
+  margin-top: 20px;
+}
+
+.update-time {
+  margin-top: 15px;
+  text-align: right;
+  padding-right: 10px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .user-greeting {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .user-greeting h1 {
+    font-size: 1.5rem;
+  }
+}
+</style>
